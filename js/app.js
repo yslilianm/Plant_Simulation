@@ -7,53 +7,6 @@ var geoList = [];
 var verticesList = [];
 var userOpts;
 
-//GUI is currently not working
-function resetGui() {
-  userOpts = {
-    linkDistance: 10,
-    radius: 5,
-    growthSpeed: 0.0005,
-    maxRadius: 100,
-    reset: false
-  };
-}
-
-function setupGui() {
-
-  resetGui();
-
-  gui = new dat.GUI();
-
-  gui.add(userOpts, "linkDistance", 5.0, 15.0).name("Distance between cells");
-  gui.add(userOpts, "radius", 5.0, 10.0).name("Radius");
-  gui.add(userOpts, "growthSpeed", 0.0001, 0.001).name("Growth Speed");
-  gui.add(userOpts, "reset").name("reset");
-}
-
-// function resetGui() {
-//   effectController = {
-//     wrap: 'repeat',
-//     repeat: 3,
-//     showPoly: false,
-//     mtlName: 'water',
-//     reset: false
-//   };
-// }
-//
-// function setupGui() {
-//
-//   resetGui();
-//
-//   gui = new dat.GUI();
-//   gui.add(effectController, "wrap", ['repeat', 'mirrored repeat', 'clamp to edge']).name("wrap mode");
-//   gui.add(effectController, "repeat", 0.0, 10.0).name("texture repeat");
-//   gui.add(effectController, "showPoly").name("show polygon");
-//   gui.add(effectController, "mtlName", ['crate', 'grid', 'water', 'concrete', 'letterR']).name("texture image");
-//   gui.add(effectController, "reset").name("reset");
-// }
-
-
-
 setupGui();
 let growingRadius = userOpts.radius;
 let counter = 0;
@@ -80,7 +33,11 @@ function fillScene() {
   // Initial state /////
   // Create a base
   var base = new THREE.SphereGeometry(userOpts.radius, 1, 1);
+
+  //Turn face-vector data structure into half edge
   verticesList = base.vertices;
+  var halfEdgeMesh = createHEStructure(base);
+  console.log(halfEdgeMesh);
 
   // Create a cell
   var cell = new THREE.SphereGeometry(userOpts.radius, 50, 50);
@@ -175,18 +132,29 @@ function animate() {
   cameraControls.update(); // Only required if .enableDamping = true or .autoRotate = true
 
   //Morph the cells
-  let i = 0
+  let i = 0;
+  let velocity = userOpts.growthSpeed;
   for (let geo of geoList) {
+    // // Make sure the index isn't out of bound
+    // if (j < geoList.length - 1){
+    //   // If two cells aren't overlapping
+    //   if (verticesList[j].distanceTo(verticesList[j+1]) < 2 * userOpts.radius){
+    //     // Apply bulge force
+    //
+    //   }
+    // }
     if (growingRadius < userOpts.maxRadius) {
-      //Grow the cell
+      //TO-DO2: Apply turgor pressure to grow the cell
       geo.scale.x *= 1 + userOpts.growthSpeed;
       geo.scale.y *= 1 + userOpts.growthSpeed;
       geo.scale.z *= 1 + userOpts.growthSpeed;
       console.log(verticesList[i]);
       console.log(i);
-      geo.position.x += verticesList[i].x * userOpts.growthSpeed;
-      geo.position.y += verticesList[i].y * userOpts.growthSpeed;
-      geo.position.z += verticesList[i].z * userOpts.growthSpeed;
+
+      //TO-DO3: Apply velocity and forces to move the cell
+      geo.position.x += verticesList[i].x * (3 * userOpts.growthSpeed);
+      geo.position.y += verticesList[i].y * (3 * userOpts.growthSpeed);
+      geo.position.z += verticesList[i].z * (3 * userOpts.growthSpeed);
 
       console.log("animate");
       growingRadius *= (1 + userOpts.growthSpeed);
@@ -201,6 +169,101 @@ function animate() {
 
   render();
 }
+
+// Create Half-edge data structure
+// Modified by https://observablehq.com/@2talltim/mesh-data-structures-traversal
+
+function HalfEdge(tail, head){
+  this.tail = tail;
+  this.head = head;
+  this.next = null;
+  this.twin = null;
+  this.face = null;
+}
+
+function HalfEdgeMesh () {
+  this.vertices = [];
+  this.edges = [];
+  this.geo = null; //Store the original geometry
+}
+
+
+ function createHEStructure(geo){
+  var hem = new HalfEdgeMesh();
+  hem.geo = geo;
+  for (let f of geo.faces){
+    let pointA = geo.vertices[f.a];
+    let pointB = geo.vertices[f.b];
+    let pointC = geo.vertices[f.c];
+    hem.vertices.push(pointA);
+    hem.vertices.push(pointB);
+    hem.vertices.push(pointC);
+    let vertPairs = [[pointA, pointB], [pointB, pointC], [pointC, pointA]]
+    let i = 0;
+    for (let v of vertPairs){
+      if ([v[0], v[1]] in hem.edges === false){
+        var he = new HalfEdge(v[0],v[1]);
+        he.face = f;
+        he.next = vertPairs[(i + 1) % 3];
+        i++;
+        hem.edges.push(he);
+      }
+
+      if (![v[1], v[0]] in hem.edges){
+        var heTwin = new HalfEdge(v[1],v[0]);
+        hem.edges.push(heTwin);
+        he.twin = heTwin;
+      }
+    }
+  }
+  return hem;
+}
+
+//GUI is currently not working
+function resetGui() {
+  userOpts = {
+    linkDistance: 6,
+    radius: 5,
+    growthSpeed: 0.0005,
+    maxRadius: 10,
+    reset: false
+  };
+}
+
+function setupGui() {
+
+  resetGui();
+
+  gui = new dat.GUI();
+
+  gui.add(userOpts, "linkDistance", 5.0, 15.0).name("Distance between cells");
+  gui.add(userOpts, "radius", 5.0, 10.0).name("Radius");
+  gui.add(userOpts, "growthSpeed", 0.0001, 0.001).name("Growth Speed");
+  gui.add(userOpts, "reset").name("reset");
+}
+
+// function resetGui() {
+//   effectController = {
+//     wrap: 'repeat',
+//     repeat: 3,
+//     showPoly: false,
+//     mtlName: 'water',
+//     reset: false
+//   };
+// }
+//
+// function setupGui() {
+//
+//   resetGui();
+//
+//   gui = new dat.GUI();
+//   gui.add(effectController, "wrap", ['repeat', 'mirrored repeat', 'clamp to edge']).name("wrap mode");
+//   gui.add(effectController, "repeat", 0.0, 10.0).name("texture repeat");
+//   gui.add(effectController, "showPoly").name("show polygon");
+//   gui.add(effectController, "mtlName", ['crate', 'grid', 'water', 'concrete', 'letterR']).name("texture image");
+//   gui.add(effectController, "reset").name("reset");
+// }
+
 
 
 
