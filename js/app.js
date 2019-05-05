@@ -3,6 +3,8 @@ var camera, scene, renderer;
 var cameraControls, effectController;
 var clock = new THREE.Clock();
 var gui;
+var strDownloadMime = "image/cell-growth";
+
 var isClear = true;
 // var geoList = [];
 // var verticesList = [];
@@ -38,7 +40,7 @@ function resetGui() {
     reset: false,
     springF: 0.00001,
     planarF: 0.00001,
-    bulgeF: 0.00001
+    bulgeF: 0.00007
   };
 }
 
@@ -53,10 +55,14 @@ function clearScene() {
 function setupGui() {
   resetGui();
   gui = new dat.GUI();
-  gui.add(userOpts, "linkDistance", 5.0, 15.0).name("Distance between cells");
-  gui.add(userOpts, "radius", 5.0, 10.0).name("Radius");
-  gui.add(userOpts, "growthSpeed", 0.0001, 0.001).name("Growth Speed");
-  gui.add(userOpts, "reset").name("reset");
+  gui.add(userOpts, "linkDistance", 2.0, 8.0).name("Distance between cells");
+  gui.add(userOpts, "radius", 1.0, 7.0).name("Radius");
+  gui.add(userOpts, "growthSpeed", 0.0001, 0.001).name("Growth Speed").listen();
+  var saveObj = {
+    add: function () {
+      saveAsImage()
+    }
+  };
   var runObj = {
     add: function () {
       runSimulation()
@@ -67,45 +73,121 @@ function setupGui() {
       clearScene()
     }
   };
+  // gui.add(resetObj, 'add').name("reset");
   gui.add(runObj, 'add').name("Run Simulation");
+  gui.add(saveObj, "add").name("Screenshot");
   gui.add(clearObj, 'add').name("Clear");
+
+
 }
 
 init();
+
 console.log("init");
+
 setupGui();
 addToDOM();
 
 
 function runSimulation() {
+  if (isClear === false){
+    clearScene();
+  }
+  // loadModel();
   loadBase();
+
   fillScene();
   console.log("fillScene");
   console.log("addToDOM");
+
   animate();
   console.log("animate");
+  render();
 }
-
-// function createCell(radius){
-//     var cell = new THREE.SphereGeometry( radius, 50, 50 );
-// }
 
 function loadBase() {
-  var sphere = new THREE.SphereGeometry(userOpts.linkDistance, 4, 4);
-
-  base = new Base(sphere);
   // Initial state /////
-  // Create a base
+  // Create a sphere geometry as a base
+  var sphere = new THREE.SphereGeometry(userOpts.linkDistance, 4, 4);
+  base = new Base(sphere);
+
   for (let v of sphere.vertices) {
-    console.log(v);
+    // console.log(v);
     base.verticesList.push(v.clone());
   }
+  // console.log(userOpts.linkDistance);
+  // console.log("loadBase");
+  // console.log(base.verticesList[0].x);
+}
 
-  console.log(userOpts.linkDistance);
-  console.log("loadBase");
-  console.log(base.verticesList[0].x);
+// function loadModel(){
+//     var loader = new THREE.GLTFLoader();
+//   loader.load( 'model/carrot_1.gltf',
+//     function ( gltf ) {
+//     var mesh = gltf.scene;
+//     mesh.children[0].material = new THREE.MeshLambertMaterial();
+//     console.log(mesh.children);
+//     scene.add(mesh);
+//   },
+//     // called while loading is progressing
+// 	function ( xhr ) {
+// 		console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+// 		},
+//     function ( error ) {
+// 	console.error( "something is wrong!");
+// } );
+//   render();
+// 	requestAnimationFrame( animate );
+// 	renderer.render( scene, camera );
+// }
+
+// Load an equirectangular image as cancas background
+https://threejs.org/examples/webgl_panorama_equirectangular.html
+function loadBackground(){
+  var geometry = new THREE.SphereBufferGeometry( 500, 60, 40 );
+				// invert the geometry on the x-axis so that all of the faces point inward
+				geometry.scale( - 1, 1, 1 );
+
+				var texture = new THREE.TextureLoader().load( 'asset/blue.png' );
+				var material = new THREE.MeshBasicMaterial( { map: texture, transparent: true, opacity: 0.5, } );
+        console.log(texture);
+				mesh = new THREE.Mesh( geometry, material );
+
+				scene.add( mesh );
 
 }
+
+// Save canvas to a jpg
+// Source code: https://stackoverflow.com/questions/26193702/three-js-how-can-i-make-a-2d-snapshot-of-a-scene-as-a-jpg-image
+
+function saveAsImage() {
+        var imgData, imgNode;
+
+        try {
+            var strMime = "image/jpeg";
+            imgData = renderer.domElement.toDataURL(strMime);
+
+            saveFile(imgData.replace(strMime, strDownloadMime), "cell-growth.jpg");
+
+        } catch (e) {
+            console.log(e);
+            // return;
+        }
+
+    }
+
+    var saveFile = function (strData, filename) {
+        var link = document.createElement('a');
+        if (typeof link.download === 'string') {
+            document.body.appendChild(link); //Firefox requires the link to be in the body
+            link.download = filename;
+            link.href = strData;
+            link.click();
+            document.body.removeChild(link); //remove the link when done
+        } else {
+            location.replace(uri);
+        }
+    }
 
 function fillScene() {
   isClear = false;
@@ -127,14 +209,14 @@ function fillScene() {
   // Define material
   // var material = new THREE.MeshBasicMaterial( { color: 0x2194ce, wireframe:true } );
   material = new THREE.MeshPhongMaterial({
-    color: 0x749BA6,
+    color: 0x577600,// 0x749BA6,
     transparent: true,
     specular: 0xDCE4EE,
-    opacity: 0.7,
+    opacity: 0.6,
     shininess: 10
   });
 
-  material1 = new THREE.MeshPhongMaterial({
+  materialNew = new THREE.MeshPhongMaterial({
     color: 0x99DA5A,
     transparent: true,
     specular: 0xDCE4EE,
@@ -163,26 +245,47 @@ function fillScene() {
 // 	scene.add(baseMesh);
 }
 
+// Map the volume of the cell to the color (big: organg, small: green)
+function volumeToColor(cellR, maxR) {
+  getSphereVolume(cellR);
+  let volumeRatio = maxR / cellR / 3;
+  if (volumeRatio > 1) {
+    console.log(`ratio > 1: ${volumeRatio}`);
+    return 1;
+  }
+  else if (volumeRatio < 0) {
+    console.log(`ratio < 0: ${volumeRatio}`);
+    return 0;
+  }
+  else {
+    console.log(`ratio in between: ${volumeRatio}`);
+    return volumeRatio;
+  }
+
+}
 function init() {
   var canvasWidth = window.innerWidth;
   var canvasHeight = window.innerHeight;
   var canvasRatio = canvasWidth / canvasHeight;
 
   //RENDERER
-  renderer = new THREE.WebGLRenderer();
+  renderer = new THREE.WebGLRenderer({preserveDrawingBuffer: true});  // For saving images: preserve the buffers until manually cleared or overwritten
   // renderer.gammaInput(true);
   // renderer.gammaOutput(true);
   renderer.setSize(canvasWidth, canvasHeight);
   renderer.setClearColor(0x1C1D26, 1.0);  // Background color
+  renderer.setClearColor(0x000000);  // Background color
+
 
   //CAMERA
   camera = new THREE.PerspectiveCamera(90, canvasRatio, 0.1, 1000);
-  camera.position.z = 40;
-  camera.lookAt(0, 0, 0);
+  camera.position.z = 60;
+  camera.position.y = 80;
+  camera.lookAt(0, -60, 0);
 
   // CONTROLS
   cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
-  cameraControls.target.set(0, 0, 0);
+  cameraControls.target.set(0, 50, 0);
   // Create auto rotation effect
   cameraControls.autoRotate = true;
   cameraControls.autoRotateSpeed = 0.01;
@@ -190,7 +293,7 @@ function init() {
   cameraControls.enableDamping = true;
   cameraControls.dampingFactor = 0.2;
   // cameraControls.minDistance = 100;
-  cameraControls.maxDistance = 1000;
+  cameraControls.maxDistance = 500;
   // cameraControls.maxPolarAngle = Math.PI / 2;
   // cameraControls.update();
 
@@ -209,6 +312,8 @@ function init() {
   scene.add(ambientLight);
   scene.add(light);
 
+  loadBackground();
+
   renderer.render(scene, camera);
 }
 
@@ -225,66 +330,102 @@ function addToDOM() {
 
 // To modify the scene before the scene
 function render() {
+  console.log("render");
   var delta = clock.getDelta();
   cameraControls.update(delta);
   renderer.render(scene, camera);
 }
 
 function animate() {
+  // If the clear button is clicked
+    if (isClear === false){
+
   //Draw the scene when refreshed
   window.requestAnimationFrame(animate);
   cameraControls.update(); // Only required if .enableDamping = true or .autoRotate = true
 
-  //Morph the cells
-  // let i = 0;
-  // console.log(`growingRadius ${growingRadius}`);
+
+  // Iterate a list of every object in the scene
   for (let geo of base.geoList.children) {
     let len = base.geoList.children.length;
     console.log(`geoList's length: ${len}`);
     let i = base.geoList.children.indexOf(geo);
+
+    // Store the position of next object into a vertex
     let nextP = base.geoList.children[(i + 1) % len].position;
+
+    // Store the position of previous object into a vertex
     let preP;
     if (i === 0){
       preP = base.geoList.children[len -1].position;
     }
     else{
       preP = base.geoList.children[(i - 1) % len].position;
-
     }
 
+    // When the cell has the space to grow
     if (cell.radius < userOpts.maxRadius) {
-      // // Make sure the index isn't out of bound
-      // if (j < geoList.length - 1){
-      //   // If two cells aren't overlapping
-      //   if (verticesList[j].distanceTo(verticesList[j+1]) < 2 * userOpts.radius){
-      //     // Apply bulge force
-      //
-      //   }
-      // }
-      // if (growingRadius < userOpts.maxRadius) {
-      //TO-DO2: Apply turgor pressure to grow the cell
-      // console.log("grow");
       geo.scale.x *= 1 + userOpts.growthSpeed;
       geo.scale.y *= 1 + userOpts.growthSpeed;
       geo.scale.z *= 1 + userOpts.growthSpeed;
       cell.radius *= 1 + userOpts.growthSpeed;
+      // geo.material.color.setRGB(volumeToColor(cell.radius, userOpts.maxRadius), 0.6, 0);
     }
+
+    // When the cell has reach the food limitation,
+    // split into two (old & new) smaller cells
     else {
       console.log("split");
+
+      // Shrink the old cell into 1/2 time
       geo.scale.x /= 2;
       geo.scale.y /= 2;
       geo.scale.z /= 2;
       cell.radius /= 2;
-      let newCell = createNewCell();
-      let random = [Math.random(), Math.random(), Math.random()];
-      console.log(random);
-      newCell.position.x = geo.position.x;
-      newCell.position.y = geo.position.y;
-      newCell.position.z = geo.position.z;
+      // geo.material.color.setRGB(volumeToColor(cell.radius, userOpts.maxRadius), 0.6, 0);
 
-      newCell.position.x += geo.position.x - (random[0] * cell.radius);  // Randomness is here!!
-      newCell.position.y += geo.position.y - (random[1] * cell.radius);  // Randomness is here!!
-      newCell.position.z += geo.position.z - (random[2] * cell.radius);  // Randomness is here!!
+
+      let random = [Math.random(), Math.random(), Math.random()];
+
+      // // Clone a mesh
+      // let newCell =  geo.clone();
+      // base.geoList.children.splice(i, 0, newCell);
+      // console.log(`Clone! Geo.position.x`);
+
+      // Create a new cell
+      // let newCell = createNewCell((i + 1) % len);
+      // Correct the position of the new cell
+      // newCell.position.set(geo.position.x, geo.position.y, geo.position.z);
+
+      // let newCellP = geo.position.clone();
+      // newCell.position.set(newCellP);
+      // console.log("newCell.position:");
+      // console.log(newCellP);
+
+      // Create a new cell
+      var cellMesh = new THREE.Mesh(cell.geo, material);
+      var newCell = base.geoList.add(cellMesh);  //I actually don't know what data type of newCell is
+
+      // Correct the position of the new cell
+      console.log(geo.position.x);
+      cellMesh.position.x += (geo.position.x - (random[0] * cell.radius));  // Randomness is here!!
+      cellMesh.position.y += (geo.position.y - (random[1] * cell.radius));  // Randomness is here!!
+      cellMesh.position.z += (geo.position.z - (random[2] * cell.radius));  // Randomness is here!!
+
+      // // Create a new cell
+      // let newCell = createNewCell((i + 1) % len);
+      //
+      // // Correct the position of the new cell
+      // console.log(geo.position.x);
+      // newCell.position.x = geo.position.x;
+      // newCell.position.y = geo.position.y;
+      // newCell.position.z = geo.position.z;
+      //
+      // newCell.position.x = geo.position.x - (random[0] * cell.radius);  // Randomness is here!!
+      // newCell.position.y = geo.position.y - (random[1] * cell.radius);  // Randomness is here!!
+      // newCell.position.z = geo.position.z - (random[2] * cell.radius);  // Randomness is here!!
+
+      // Correct the position of the old cell
       geo.position.x += random[0] * cell.radius;  // Randomness is here!!
       geo.position.y += random[1] * cell.radius;  // Randomness is here!!
       geo.position.z += random[2] * cell.radius;  // Randomness is here!!
@@ -293,22 +434,31 @@ function animate() {
       createForce(newHem);
     }
 
+    // Apply bulge force to the cell
+    // Check if every other cell is too close to itself
     for (let j = 0; j < base.geoList.children.length; j++) {
+      // If any cell is too close to itself, move that cell
       if (geo.position.distanceTo(base.geoList.children[(j + 1) % len].position) < 2 * cell.radius) {
-        base.geoList.children[(j + 1) % len].x += base.forcePList[i % (len-1)].x;
-        base.geoList.children[(j + 1) % len].y += base.forcePList[i % (len-1)].y;
-        base.geoList.children[(j + 1) % len].z += base.forcePList[i % (len-1)].z;
+        base.geoList.children[(j +i) % len].position.x += base.forcePList[i % (len)].x;
+        base.geoList.children[(j + i) % len].position.y += base.forcePList[i % (len)].y;
+        base.geoList.children[(j + i) % len].position.z += base.forcePList[i % (len)].z;
+
         // console.log(`base.forcePList: ${base.forcePList[i % (len-1)].x}`);
       }
     }
   }
+  }
   console.log("animate");
   render();
-}
 
-// Create Half-edge data structure
-// Modified from https://observablehq.com/@2talltim/mesh-data-structures-traversal
+  }
 
+/** Create Half-edge data structure
+ * Modified from https://observablehq.com/@2talltim/mesh-data-structures-traversal
+ *
+ * @param tail {vertex}
+ * @param head {vertex}
+ */
 function HalfEdge(tail, head) {
   this.tail = tail;
   this.head = head;
@@ -319,13 +469,22 @@ function HalfEdge(tail, head) {
   this.adjacent = null;
 }
 
+/** Create a mesh using half edges
+ * Modified from https://observablehq.com/@2talltim/mesh-data-structures-traversal
+ *
+ * @param geo {geometry}
+ */
 function HalfEdgeMesh(geo) {
   this.geo = geo; //Store the original geometry
   this.vertices = [];
   this.edges = [];
 }
 
-// Create a half edge data structure from a face-vector data structure
+/** Create a half edge data structure from a face-vector data structure
+ *
+ * @param geo {geometry}
+ * @returns {HalfEdgeMesh}
+ */
 function createHEStructure(geo) {
   base.hem = new HalfEdgeMesh(geo);
   base.hem.vertices = geo.vertices;
@@ -364,12 +523,24 @@ function createHEStructure(geo) {
   return base.hem;
 }
 
+/** Insert the vertex of the new cell to the half edge data structure
+ *
+ * @param pre {array} [tailVertex, headVertex]
+ * @param nextIndex {number}
+ * @param next {array} [tailVertex, headVertex]
+ * @param vertex {vertex}
+ * @returns {HalfEdgeMesh}
+ */
 function insertVertex(pre, nextIndex, next, vertex){
+
+  // Create a new geometry populated by previous, current, and new vertices for its face
   var geometry = new THREE.Geometry();
   geometry.vertices.push( new THREE.Vector3(pre.x, pre.y, pre.z) );
   geometry.vertices.push( new THREE.Vector3( vertex.x, vertex.y, vertex.z ) );
   geometry.vertices.push( new THREE.Vector3( next.x, next.y, next.z ) );
   base.hem.vertices.splice(nextIndex, 0, vertex);
+
+  // Create an half edge object and add properties
   var he = new HalfEdge(pre, vertex);
   he.next = [vertex, next];
   he.pre = [base.hem.vertices[nextIndex - 2], pre];
@@ -387,11 +558,14 @@ function insertVertex(pre, nextIndex, next, vertex){
       return base.hem;
 }
 
-// Calculate a position for the mixture of the spring, planar, and bulge forces
-// Equations reference:
-//   springForce: sum((adjacentPoint + vertex - adjacentPoint) * radius) /n
-//   planarForce: sum(adjacentPoint)/n
-//   bulgeForce: Normalize (Vertex - adjacentPoint) * radius
+/** Calculate a position for the mixture of the spring, planar, and bulge forces
+ * Equations reference:
+ *   springForce: sum((adjacentPoint + vertex - adjacentPoint) * radius) /n
+ *   planarForce: sum(adjacentPoint)/n
+ *   bulgeForce: Normalize (Vertex - adjacentPoint) * radius
+ *
+ *   @param hem {HalfEdgeMesh}
+ */
 function createForce(hem) {
   let n = hem.geo.vertices.length;
   let twiceN = n * 2;
@@ -502,7 +676,11 @@ function getBulgDist(linkLength, adjaPoint, dotProduct) {
   return sqrt + dotProduct;
 }
 
-// Get an opposite vector from an array contains a vector coordinate
+/** Get an opposite vector from an array contains a vector coordinate
+ *
+ * @param vectorArray {array}
+ * @returns {Vector3}
+ */
 function getOppoVector(vectorArray) {
   let x = vectorArray[0] * (-1);
   let y = vectorArray[1] * (-1);
@@ -511,13 +689,19 @@ function getOppoVector(vectorArray) {
   return new THREE.Vector3(x, y, z);
 }
 
-// Get the volume of a sphere
+/** Get the volume of a sphere
+ *
+ * @param r {number}
+ * @returns {number}
+ */
+
 function getSphereVolume(r) {
   return Math.pow(r, 3) * Math.PI * 4 / 3;
 }
 
-function createNewCell(radius) {
-  var cellMesh = new THREE.Mesh(cell.geo, material1);
+function createNewCell(index) {
+  var cellMesh = new THREE.Mesh(cell.geo, materialNew);
+  // base.geoList.children.splice(index, 0, cellMesh);
   base.geoList.add(cellMesh);
   return cellMesh;
 }
@@ -525,10 +709,10 @@ function createNewCell(radius) {
 
 /**
  * Calculate the nutrient movement according to reaction-diffusion equation
- * @param {float} concentration        Concentration of nutrient.
- * @param {float} time                 Time.
- * @param {float} change               Short amount of time.
- * @param {float} coefficient          Coefficient of nutrient.
+ * @param {number} concentration        Concentration of nutrient.
+ * @param {number} time                 Time.
+ * @param {number} change               Short amount of time.
+ * @param {number} coefficient          Coefficient of nutrient.
  * @param {function} reactFunction     The reaction when something happens.
  */
 function getNutrientExpandPosition(concentration, time, change, coefficient, reactFunction) {
@@ -536,32 +720,6 @@ function getNutrientExpandPosition(concentration, time, change, coefficient, rea
   return nPosition;
 }
 
-// function getCellGrowth(rateOfWaterIncrease, volume){
-//   rateOfWaterIncrease = lpr * ();
-// }
-
-
-// function resetGui() {
-//   effectController = {
-//     wrap: 'repeat',
-//     repeat: 3,
-//     showPoly: false,
-//     mtlName: 'water',
-//     reset: false
-//   };
-// }
-//
-// function setupGui() {
-//
-//   resetGui();
-//
-//   gui = new dat.GUI();
-//   gui.add(effectController, "wrap", ['repeat', 'mirrored repeat', 'clamp to edge']).name("wrap mode");
-//   gui.add(effectController, "repeat", 0.0, 10.0).name("texture repeat");
-//   gui.add(effectController, "showPoly").name("show polygon");
-//   gui.add(effectController, "mtlName", ['crate', 'grid', 'water', 'concrete', 'letterR']).name("texture image");
-//   gui.add(effectController, "reset").name("reset");
-// }
 
 
 
