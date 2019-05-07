@@ -52,12 +52,24 @@ function clearScene() {
   isClear = true;
 }
 
+function moveOrbitUp(){
+  cameraControls.target.y += 100;
+  light.position.y += 10;
+
+}
+function moveOrbitDown(){
+  cameraControls.target.y -= 100;
+  light.position.y -= 10;
+
+}
+
 function setupGui() {
   resetGui();
   gui = new dat.GUI();
-  gui.add(userOpts, "linkDistance", 2.0, 8.0).name("Distance between cells");
-  gui.add(userOpts, "radius", 1.0, 7.0).name("Radius");
-  gui.add(userOpts, "growthSpeed", 0.0001, 0.001).name("Growth Speed").listen();
+  var growthControl = gui.addFolder('Grow');
+  var actionControl = gui.addFolder('Action');
+  var viewControl = gui.addFolder('Move');
+
   var saveObj = {
     add: function () {
       saveAsImage()
@@ -73,10 +85,36 @@ function setupGui() {
       clearScene()
     }
   };
-  // gui.add(resetObj, 'add').name("reset");
-  gui.add(runObj, 'add').name("Run Simulation");
-  gui.add(saveObj, "add").name("Screenshot");
-  gui.add(clearObj, 'add').name("Clear");
+
+  var moveUpObj = {
+    add: function () {
+      moveOrbitUp()
+    }
+  };
+
+  var moveDownObj = {
+    add: function () {
+      moveOrbitDown()
+    }
+  };
+
+
+  // growthControl.add(userOpts, "linkDistance", 2.0, 8.0).name("Cell density");
+  growthControl.add(userOpts, "radius", 1.0, 7.0).name("Cell size");
+  growthControl.add(userOpts, "growthSpeed", 0.0001, 0.001).name("Water").listen();
+  growthControl.open();
+
+  actionControl.add(runObj, 'add').name("🏃‍♀️ RUN");
+  actionControl.add(saveObj, "add").name("📷 Screenshot");
+  actionControl.add(clearObj, 'add').name("🗑️ Clear");
+
+
+  viewControl.add(moveDownObj, 'add').name("⬆️ Up");
+  viewControl.add(moveUpObj, 'add').name("⬇️ Down");
+  viewControl.open();
+
+
+  actionControl.open();
 
 
 }
@@ -105,10 +143,12 @@ function runSimulation() {
   render();
 }
 
+
 function loadBase() {
   // Initial state /////
   // Create a sphere geometry as a base
   var sphere = new THREE.SphereGeometry(userOpts.linkDistance, 4, 4);
+  // var box = new THREE.BoxGeometry(userOpts.radius, userOpts.radius, 1, 10, 10, 10);
   base = new Base(sphere);
 
   for (let v of sphere.vertices) {
@@ -119,6 +159,7 @@ function loadBase() {
   // console.log("loadBase");
   // console.log(base.verticesList[0].x);
 }
+
 
 // function loadModel(){
 //     var loader = new THREE.GLTFLoader();
@@ -144,11 +185,11 @@ function loadBase() {
 // Load an equirectangular image as cancas background
 https://threejs.org/examples/webgl_panorama_equirectangular.html
 function loadBackground(){
-  var geometry = new THREE.SphereBufferGeometry( 500, 60, 40 );
+  var geometry = new THREE.SphereBufferGeometry( 1000, 60, 40 );
 				// invert the geometry on the x-axis so that all of the faces point inward
 				geometry.scale( - 1, 1, 1 );
 
-				var texture = new THREE.TextureLoader().load( 'asset/blue.png' );
+				var texture = new THREE.TextureLoader().load( 'asset/brown.png' );
 				var material = new THREE.MeshBasicMaterial( { map: texture, transparent: true, opacity: 0.5, } );
         console.log(texture);
 				mesh = new THREE.Mesh( geometry, material );
@@ -161,7 +202,7 @@ function loadBackground(){
 // Source code: https://stackoverflow.com/questions/26193702/three-js-how-can-i-make-a-2d-snapshot-of-a-scene-as-a-jpg-image
 
 function saveAsImage() {
-        var imgData, imgNode;
+        var imgData;
 
         try {
             var strMime = "image/jpeg";
@@ -274,18 +315,18 @@ function init() {
   // renderer.gammaOutput(true);
   renderer.setSize(canvasWidth, canvasHeight);
   renderer.setClearColor(0x1C1D26, 1.0);  // Background color
-  renderer.setClearColor(0x000000);  // Background color
+  // renderer.setClearColor(0xFFFFFF);  // Background color
 
 
   //CAMERA
   camera = new THREE.PerspectiveCamera(90, canvasRatio, 0.1, 1000);
   camera.position.z = 60;
-  camera.position.y = 80;
+  camera.position.y = 100;
   camera.lookAt(0, -60, 0);
 
   // CONTROLS
   cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
-  cameraControls.target.set(0, 50, 0);
+  cameraControls.target.set(0, 40, 0);
   // Create auto rotation effect
   cameraControls.autoRotate = true;
   cameraControls.autoRotateSpeed = 0.01;
@@ -293,13 +334,12 @@ function init() {
   cameraControls.enableDamping = true;
   cameraControls.dampingFactor = 0.2;
   // cameraControls.minDistance = 100;
-  cameraControls.maxDistance = 500;
+  // cameraControls.maxDistance = 800;
   // cameraControls.maxPolarAngle = Math.PI / 2;
   // cameraControls.update();
 
   //LIGHT
   ambientLight = new THREE.AmbientLight(0xFFFFFF);
-  light = new THREE.AmbientLight(0xFFFFFF);
 
   light = new THREE.DirectionalLight(0xFFFFFF, 0.3);
   light.position.set(-800, 900, 300);
@@ -312,7 +352,7 @@ function init() {
   scene.add(ambientLight);
   scene.add(light);
 
-  loadBackground();
+  // loadBackground();
 
   renderer.render(scene, camera);
 }
@@ -443,6 +483,9 @@ function animate() {
         base.geoList.children[(j + i) % len].position.y += base.forcePList[i % (len)].y;
         base.geoList.children[(j + i) % len].position.z += base.forcePList[i % (len)].z;
 
+        camera.position.setY += base.forcePList[i % (len)].y;
+        console.log(camera.position);
+        // cameraControls.update();
         // console.log(`base.forcePList: ${base.forcePList[i % (len-1)].x}`);
       }
     }
